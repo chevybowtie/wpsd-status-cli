@@ -25,15 +25,19 @@ fi
 # Construct the backend URL dynamically
 BACKEND_URL="http://$SERVER_IP/mmdvmhost/live_caller_backend.php"
 
-# Function to extract the text content from multi-line HTML
 extract_data() {
-  local regex="$1"
-  local content=$(echo "$HTML_CONTENT" | awk 'BEGIN {RS="</span>"; FS=ORS} {if ($0 ~ /'"$regex"'/) {sub(/.*>/, "", $0); print}}' | head -n 1)
+  local label="$1"
+  local regex="$2"
+  # Extract the content using grep and clean it
+  local content=$(echo "$HTML_CONTENT" | grep -Po "$regex" | sed -E 's/<[^>]+>//g' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
 
-  # Replace &deg; with the actual degree symbol
-  content=$(echo "$content" | sed 's/&deg;/°/g')
-  echo "$content"
+  # Remove the label and extra colon from the content
+  content=$(echo "$content" | sed -E "s/^$label[[:space:]]*:?[[:space:]]*//")
+
+  # Print the cleaned label and content
+  printf "%-15s: %s\n" "$label" "$content"
 }
+
 
 # Initialize screen for live updates
 initialize_screen() {
@@ -47,10 +51,9 @@ initialize_screen() {
   echo "Press 'q' to exit."
 }
 
-# Update the live content on the same lines
 update_screen() {
-  # Fetch the dynamic HTML content using curl
-  HTML_CONTENT=$(curl -s "$BACKEND_URL")
+  # Fetch the dynamic HTML content using curl and normalize it
+  HTML_CONTENT=$(curl -s "$BACKEND_URL" | tr -d '\n' | sed -E 's/>[[:space:]]+</></g')
 
   # Check if the HTML content was successfully fetched
   if [[ -z "$HTML_CONTENT" ]]; then
@@ -63,23 +66,38 @@ update_screen() {
   tput cup 2 0
 
   # Extract and display the Call Sign in large font
-  CALL_SIGN=$(extract_data "<span class='oc_call'>")
+  CALL_SIGN=$(echo "$HTML_CONTENT" | grep -Po "<span class='oc_call'>.*?</span>" | sed -E 's/<[^>]+>//g')
   if [[ -n "$CALL_SIGN" ]]; then
     figlet "$CALL_SIGN"
   else
     echo "Call Sign: Not available"
   fi
 
-  extract_data "<span class='oc_name'>" | awk '{printf "Operator Name  : %s\n", $0}'
-  extract_data "<span class='oc_caller'>" | awk '{printf "Location       : %s\n", $0}'
-  extract_data "Source:.*?<span class='dc_info_def'>" | awk '{printf "Source         : %s\n", $0}'
-  extract_data "Mode:.*?<span class='dc_info_def'>" | awk '{printf "Mode           : %s\n", $0}'
-  extract_data "Target:.*?<span class='dc_info_def'>" | awk '{printf "Target         : %s\n", $0}'
-  extract_data "TX Duration:.*?<span class='dc_info_def'>" | awk '{printf "TX Duration    : %s\n", $0}'
-  extract_data "Packet Loss:.*?<span class='dc_info_def'>" | awk '{printf "Packet Loss    : %s\n", $0}'
-  extract_data "Hotspot Time:.*?<span class='hw_info_def'>" | awk '{printf "Hotspot Time   : %s\n", $0}'
-  extract_data "CPU Temp:.*?<span class='cpu_norm'>" | awk '{printf "CPU Temp       : %s\n", $0}'
+  # Extract and display other data
+  extract_data "Operator Name" "<span class='oc_name'>.*?</span>"
+
+# Extract and clean the Location
+LOCATION=$(echo "$HTML_CONTENT" | grep -Po "<span class='oc_caller'>.*?</span>" \
+  | sed -E 's/<span class='\''oc_name'\''>.*?<\/span>//g' \
+  | sed -E 's/<br \/>/, /g' \
+  | sed -E 's/<[^>]+>//g' \
+  | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+
+# Print the Location
+printf "%-15s: %s\n" "Location" "$LOCATION"
+
+
+  extract_data "Source" "Source:.*?<span class='dc_info_def'>(.*?)</span>"
+  extract_data "Mode" "Mode:.*?<span class='dc_info_def'>(.*?)</span>"
+  extract_data "Target" "Target:.*?<span class='dc_info_def'>(.*?)</span>"
+  extract_data "TX Duration" "TX Duration:.*?<span class='dc_info_def'>(.*?)</span>"
+  extract_data "Packet Loss" "Packet Loss:.*?<span class='loss_.*?'>(.*?)</span>"
+  extract_data "Hotspot Time" "Hotspot Time:.*?<span class='hw_info_def'>(.*?)</span>"
+  extract_data "CPU Temp" "CPU Temp:.*?<span class='cpu_norm'>(.*?)</span>" | sed 's/&deg;/°/g'
 }
+
+
+
 
 # Main loop to continuously fetch and display updates
 RUNNING=true
