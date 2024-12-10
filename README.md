@@ -1,0 +1,1 @@
+# wpsd-status-cli
