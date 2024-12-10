@@ -1,10 +1,29 @@
 #!/bin/bash
 
-# URL to fetch the dynamic content
-BACKEND_URL="http://10.5.20.137/mmdvmhost/live_caller_backend.php"
+# Load configuration file
+CONFIG_FILE="${CONFIG_FILE:-config.cfg}"
 
-# Interval between updates (in seconds)
-UPDATE_INTERVAL=1.5
+if [[ -f "$CONFIG_FILE" ]]; then
+  source "$CONFIG_FILE"
+else
+  echo "Error: Configuration file '$CONFIG_FILE' not found."
+  echo "Please create a configuration file with the necessary parameters."
+  exit 1
+fi
+
+# Ensure required configurations are set
+if [[ -z "$SERVER_IP" ]]; then
+  echo "Error: SERVER_IP is not set in the configuration file."
+  exit 1
+fi
+
+if [[ -z "$UPDATE_INTERVAL" ]]; then
+  echo "Error: UPDATE_INTERVAL is not set in the configuration file."
+  exit 1
+fi
+
+# Construct the backend URL dynamically
+BACKEND_URL="http://$SERVER_IP/mmdvmhost/live_caller_backend.php"
 
 # Function to extract the text content from multi-line HTML
 extract_data() {
@@ -43,16 +62,14 @@ update_screen() {
   # Move cursor to the starting position for updates
   tput cup 2 0
 
-# Extract and display the Call Sign in large font
-CALL_SIGN=$(extract_data "<span class='oc_call'>")
-if [[ -n "$CALL_SIGN" ]]; then
-  figlet "$CALL_SIGN"
-else
-  echo "Call Sign: Not available"
-fi
+  # Extract and display the Call Sign in large font
+  CALL_SIGN=$(extract_data "<span class='oc_call'>")
+  if [[ -n "$CALL_SIGN" ]]; then
+    figlet "$CALL_SIGN"
+  else
+    echo "Call Sign: Not available"
+  fi
 
-
-  # Extract and display other data
   extract_data "<span class='oc_name'>" | awk '{printf "Operator Name  : %s\n", $0}'
   extract_data "<span class='oc_caller'>" | awk '{printf "Location       : %s\n", $0}'
   extract_data "Source:.*?<span class='dc_info_def'>" | awk '{printf "Source         : %s\n", $0}'
