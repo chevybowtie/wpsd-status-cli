@@ -54,11 +54,17 @@ Run the script:
 
 ### Update Interval
 
+Set your hot spot's IP address in the BACKEND_URL:
+```bash
+BACKEND_URL="http://10.5.20.137/mmdvmhost/live_caller_backend.php"
+```
+
 To change the interval for live updates, edit the UPDATE_INTERVAL variable in the script:
 
 ```bash
 UPDATE_INTERVAL=1.5  # Time in seconds
 ```
+
 
 ## Contribution
 
